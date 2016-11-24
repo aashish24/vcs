@@ -13,6 +13,198 @@ import inspect
 import VTKAnimate
 import vcsvtk
 
+def vtklutTomplColor(vtklut):
+    from matplotlib.colors import LinearSegmentedColormap
+
+    vtklut.ForceBuild()
+    vtkcolors = vtklut.GetTable()
+    colors = []
+    print 'SetNumberOfTableValues ', vtklut.GetNumberOfTableValues()
+    noOfColors = vtklut.GetNumberOfTableValues()
+
+    for i in range(0, noOfColors):
+        tupl = vtklut.GetTableValue(i)
+        # print tupl
+        colors.append(tupl)
+    cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
+    return cmap
+
+def writePDF(renWin):
+    import vtk
+    import math
+    from numpy import zeros
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.collections import LineCollection
+
+    renderers = renWin.GetRenderers()
+    renderers.InitTraversal()
+    ren = renderers.GetNextItem()
+
+    if ren is None:
+        print 'nothing to write'
+        return
+
+    ren = renderers.GetNextItem()
+    vp = ren.GetViewport()
+
+    # Initialize mpl plot
+    renwinSize = renWin.GetSize()
+    aspect = renwinSize[0]/float(renwinSize[1])
+    print ren.GetViewport()
+    h = math.ceil(renwinSize[1]/300.)
+    w = math.ceil(aspect * h)
+    fig = plt.figure(1, figsize=(renwinSize[0]/300., renwinSize[1]/300.), dpi=300)
+    gs1 = gridspec.GridSpec(1, 1)
+    gs1.update(left=vp[0], right=vp[2], bottom=vp[1], top=vp[3])
+    plt.subplot(gs1[0, 0])
+    axes = plt.gca()
+    axes.get_xaxis().set_ticks([])
+    axes.get_yaxis().set_ticks([])
+    index = 0
+    lin = []
+    xx = []
+    yy = []
+    maxX = None
+    maxY = None
+
+    while ren is not None:
+        # print ren
+        props = ren.GetViewProps()
+        props.InitTraversal()
+        prop = props.GetNextProp()
+
+        while prop is not None:
+            print prop.GetClassName()
+
+            if prop.GetClassName() == 'vtkOpenGLActor':
+                mapper = prop.GetMapper()
+
+                print mapper.GetClassName()
+
+                if mapper.GetClassName() == 'vtkPainterPolyDataMapper':
+                    mapper.Update()
+                    data = mapper.GetInput()
+
+                    sf = vtk.vtkShrinkPolyData()
+                    sf.SetShrinkFactor(1)
+                    sf.SetInputData(data)
+                    sf.Update()
+                    data = sf.GetOutput()
+
+                    ctop = vtk.vtkCellDataToPointData()
+                    ctop.AddInputData(data)
+                    ctop.Update()
+                    data = ctop.GetOutput()
+
+                    filter = vtk.vtkTriangleFilter()
+                    filter.SetInputData(data)
+                    filter.Update()
+
+                    data = filter.GetOutput()
+                    triangles = data.GetPolys()
+                    points = data.GetPoints()
+                    lines = data.GetLines()
+                    nlines = 0
+                    ntri = 0
+
+                    if lines.GetNumberOfCells() == 0:
+                        lines = None
+
+                    if (triangles is not None):
+                        ntri = triangles.GetNumberOfCells()
+
+                    if lines is not None:
+                        nlines = lines.GetNumberOfCells()
+
+                    npts = points.GetNumberOfPoints()
+
+                    tri = zeros((ntri, 3))
+                    x = zeros(npts)
+                    y = zeros(npts)
+                    z = zeros(npts)
+
+                    idlist = vtk.vtkIdList()
+
+                    for i in xrange(0, ntri):
+                        cell = triangles.GetNextCell(idlist)
+                        tri[i, 0] = idlist.GetId(0)
+                        tri[i, 1] = idlist.GetId(1)
+                        tri[i, 2] = idlist.GetId(2)
+
+                    for i in xrange(0, nlines):
+                        cell = lines.GetNextCell(idlist)
+                        alineA = [0, 0]
+                        alineB = [0, 0]
+                        newPointA = [0, 0, 0, 1]
+                        newPointB = [0, 0, 0, 1]
+                        aline = []
+                        pointA = points.GetPoint(idlist.GetId(0))
+                        pointB = points.GetPoint(idlist.GetId(1))
+
+                        newPointA[0] = pointA[0]
+                        newPointA[1] = pointA[1]
+                        newPointA[2] = pointA[2]
+                        newPointB[0] = pointB[0]
+                        newPointB[1] = pointB[1]
+                        newPointB[2] = pointB[2]
+
+                        aline.append([newPointA[0], newPointA[1]])
+                        aline.append([newPointB[0], newPointB[1]])
+                        lin.append(aline)
+
+                    for i in xrange(npts):
+                        pt = points.GetPoint(i)
+                        x[i] = pt[0]
+                        y[i] = pt[1]
+                        z[i] = pt[2]
+
+                    if (data.GetPointData().GetNumberOfArrays() >= 2):
+                        vels = data.GetPointData().GetArray(2)
+                        nvls = vels.GetNumberOfTuples()
+
+                        ux = zeros(nvls)
+                        uy = zeros(nvls)
+
+                        print vels.GetNumberOfTuples()
+
+                        for i in xrange(0, nvls):
+                            U = vels.GetTuple(i)
+                            ux[i] = U[0]
+                        #     # print ux[i]
+
+                        if triangles is not None:
+                            cmap = vtklutTomplColor(prop.GetMapper().GetLookupTable())
+                            a = plt.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+                index += 1
+
+            elif prop.GetClassName() == 'vtkTextActor':
+                text = prop.GetInput()
+                coord = prop.GetActualPositionCoordinate()
+                prop = prop.GetScaledTextProperty()
+                viewport = ren.GetViewport()
+                textPos2 = coord.GetComputedDoubleViewportValue(ren)
+                viewportPixels = [int(viewport[0] * renwinSize[0]),
+                                  int(viewport[1] * renwinSize[1]),
+                                  int(viewport[2] * renwinSize[0]),
+                                  int(viewport[3] * renwinSize[1])]
+                viewportSpread = [viewportPixels[2] - viewportPixels[0],
+                                  viewportPixels[3] - viewportPixels[1]]
+                textPos = [0, 0]
+                textPos[0] = (textPos2[0] / float(viewportSpread[0]))
+                textPos[1] = (textPos2[1] / float(viewportSpread[1]))
+                fig.text(textPos[0], textPos[1], text, size=4)
+
+
+            prop = props.GetNextProp()
+        ren = renderers.GetNextItem()
+
+    if len(lin) > 0:
+        lc = LineCollection(lin, linestyles='solid', colors='black')
+        lc.set_linewidth(0.1)
+        axes.add_collection(lc)
+    plt.show()
+    return
 
 class VCSInteractorStyle(vtk.vtkInteractorStyleUser):
 
@@ -1080,6 +1272,10 @@ class VTKVCSBackend(object):
         if self.renWin is None:
             raise Exception("Nothing on Canvas to dump to file")
 
+        # TODO: Aashish
+        writePDF(self.renWin)
+        return
+
         self.hideGUI()
 
         gl = vtk.vtkOpenGLGL2PSExporter()
@@ -1100,7 +1296,7 @@ class VTKVCSBackend(object):
         gl.SetSortToOff()
         gl.DrawBackgroundOff()
         gl.SetInput(self.renWin)
-        gl.SetCompress(0)  # Do not compress
+        gl.SetCompress(1)  # Do not compress
         gl.SetFilePrefix(".".join(file.split(".")[:-1]))
 
         if textAsPaths:
@@ -1310,6 +1506,8 @@ class VTKVCSBackend(object):
     def fitToViewport(self, Actor, vp, wc=None, geoBounds=None, geo=None, priority=None,
                       create_renderer=False):
 
+        print 'wc ', wc
+
         # Data range in World Coordinates
         if priority == 0:
             return (None, 1, 1)
@@ -1336,6 +1534,7 @@ class VTKVCSBackend(object):
             Renderer = self.createRenderer()
             self.renWin.AddRenderer(Renderer)
             Renderer.SetViewport(vp[0], vp[2], vp[1], vp[3])
+            print 'vp ', vp
 
             if Yrg[0] > Yrg[1]:
                 # Yrg=[Yrg[1],Yrg[0]]
