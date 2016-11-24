@@ -6,6 +6,111 @@ import vcs
 import vtk
 
 
+def vtklutTomplColor(vtklut):
+    from matplotlib.colors import LinearSegmentedColormap
+
+    vtklut.ForceBuild()
+    vtkcolors = vtklut.GetTable()
+    colors = []
+    print 'SetNumberOfTableValues ', vtklut.GetNumberOfTableValues()
+    noOfColors = vtklut.GetNumberOfTableValues()
+
+    for i in range(0, noOfColors):
+        tupl = vtklut.GetTableValue(i)
+        print tupl
+        colors.append(tupl)
+    cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
+    return cmap
+
+def writePdf(actors):
+    import vtk
+    from numpy import zeros
+    import matplotlib.pyplot as plt
+
+    for actorList in actors:
+        actor = actorList[0]
+        data = actor.GetMapper().GetInput()
+
+        filter = vtk.vtkTriangleFilter()
+        filter.SetInputData(data)
+        filter.Update()
+
+        data = filter.GetOutput()
+
+        triangles = data.GetPolys()
+        points = data.GetPoints()
+
+        ntri = triangles.GetNumberOfCells()
+        npts = points.GetNumberOfPoints()
+
+        tri = zeros((ntri, 3))
+        x = zeros(npts)
+        y = zeros(npts)
+        z = zeros(npts)
+
+        # ux = zeros(nvls)
+        # uy = zeros(nvls)
+
+        idlist = vtk.vtkIdList()
+
+        for i in xrange(0, ntri):
+            cell = triangles.GetNextCell(idlist)
+            tri[i, 0] = idlist.GetId(0)
+            tri[i, 1] = idlist.GetId(1)
+            tri[i, 2] = idlist.GetId(2)
+
+        for i in xrange(npts):
+            pt = points.GetPoint(i)
+            x[i] = pt[0]
+            y[i] = pt[1]
+            z[i] = pt[2]
+
+        # for i in xrange(0, nvls):
+        #     U = vels.GetTuple(i)
+        #     ux[i] = U[0]
+        #     uy[i] = U[1]
+
+        # Mesh
+        # plt.figure(figsize=(8, 8))
+        # plt.triplot(x, y, tri)
+        # plt.gca().set_aspect('equal')
+        # plt.show()
+
+
+        mapper = vtk.vtkCellDataToPointData()
+        mapper.AddInputData(data)
+        mapper.Update()
+        data = mapper.GetOutput()
+        vels = data.GetPointData().GetArray(2)
+        nvls = vels.GetNumberOfTuples()
+
+        ux = zeros(nvls)
+        uy = zeros(nvls)
+
+        print vels.GetNumberOfTuples()
+
+        for i in xrange(0, nvls):
+            U = vels.GetTuple(i)
+            ux[i] = U[0]
+            # print ux[i]
+
+
+        from matplotlib.backends.backend_pdf import PdfPages
+
+        # with PdfPages('multipage_pdf.pdf') as pdf:
+        plt.figure()
+        cmap = vtklutTomplColor(actor.GetMapper().GetLookupTable())
+        plt.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+        plt.show()
+            # pdf.savefig()  # saves the current figure into a pdf page
+    plt.close()
+
+    writer = vtk.vtkXMLPolyDataWriter()
+    writer.SetInputData(data)
+    writer.SetFileName("foo.vtk")
+    writer.Write()
+
+
 class IsofillPipeline(Pipeline2D):
 
     """Implementation of the Pipeline interface for VCS isofill plots."""
@@ -94,7 +199,6 @@ class IsofillPipeline(Pipeline2D):
             for i in range(numLevels):
                 r, g, b, a = self.getColorIndexOrRGBA(_colorMap, self._contourColors[i])
                 lut.SetTableValue(i, r / 100., g / 100., b / 100., a / 100.)
-
             mapper.SetLookupTable(lut)
             if numpy.allclose(self._contourLevels[0], -1.e20):
                 lmn = self._min - 1.
@@ -167,6 +271,8 @@ class IsofillPipeline(Pipeline2D):
             actors.append([act, plotting_dataset_bounds])
 
         self._resultDict["vtk_backend_actors"] = actors
+
+        writePdf(actors)
 
         t = self._originalData1.getTime()
         if self._originalData1.ndim > 2:
