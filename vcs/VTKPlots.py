@@ -13,7 +13,7 @@ import inspect
 import VTKAnimate
 import vcsvtk
 
-def vtklutTomplColor(vtklut):
+def vtkToMatplotlibColor(vtklut):
     from matplotlib.colors import LinearSegmentedColormap
 
     vtklut.ForceBuild()
@@ -29,7 +29,7 @@ def vtklutTomplColor(vtklut):
     cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
     return cmap
 
-def writePDF(renWin):
+def vtkToMatplotlib(renWin):
     import vtk
     import math
     from numpy import zeros
@@ -37,6 +37,37 @@ def writePDF(renWin):
     import matplotlib.gridspec as gridspec
     from matplotlib.collections import LineCollection
 
+
+    # Compute minimum viewport coordinates
+    #-------------------------------------
+    renderers = renWin.GetRenderers()
+    renderers.InitTraversal()
+    ren = renderers.GetNextItem()
+    tightvp = None
+
+    while ren is not None:
+        vp = ren.GetViewport()
+
+        if tightvp is None:
+            print ren
+            tightvp = [0, 0, 0, 0]
+            tightvp[0] = vp[0]
+            tightvp[1] = vp[1]
+            tightvp[2] = vp[2]
+            tightvp[3] = vp[3]
+        else:
+            if vp[0] > tightvp[0]:
+                tightvp[0] = vp[0]
+            if vp[1] > tightvp[1]:
+                tightvp[1] = vp[1]
+            if vp[2] < tightvp[2]:
+                tightvp[2] = vp[2]
+            if vp[3] < tightvp[3]:
+                tightvp[3] = vp[3]
+        ren = renderers.GetNextItem()
+
+    # Now traverse the scene
+    #------------------------
     renderers = renWin.GetRenderers()
     renderers.InitTraversal()
     ren = renderers.GetNextItem()
@@ -45,31 +76,20 @@ def writePDF(renWin):
         print 'nothing to write'
         return
 
-    # ren = renderers.GetNextItem()
-    vp = ren.GetViewport()
-
     # Initialize mpl plot
     renwinSize = renWin.GetSize()
     aspect = renwinSize[0]/float(renwinSize[1])
-    print ren.GetViewport()
-
-    h = math.ceil(renwinSize[1]/300.)
-    w = math.ceil(aspect * h)
-
 
     fig = plt.figure(1, figsize=(renwinSize[0]/300., renwinSize[1]/300.), dpi=300)
     fig.set_facecolor('white')
 
     gs1 = gridspec.GridSpec(1, 1)
-    gs1.update(left=vp[0], right=vp[2], bottom=vp[1], top=vp[3])
-
+    gs1.update(left=tightvp[0], right=tightvp[2], bottom=tightvp[1], top=tightvp[3])
     sp = plt.subplot(gs1[0, 0])
 
     axes = plt.gca()
     axes.get_xaxis().set_ticks([])
     axes.get_yaxis().set_ticks([])
-    # axes.set_xlim([-180, 175])
-    # axes.set_ylim([-90, 90])
 
     index = 0
     lin = []
@@ -210,7 +230,7 @@ def writePDF(renWin):
 
                         if triangles is not None:
                             # plt.subplot(gs1[0, 0])
-                            cmap = vtklutTomplColor(prop.GetMapper().GetLookupTable())
+                            cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable())
                             a = axes.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
                 index += 1
 
@@ -1314,7 +1334,7 @@ class VTKVCSBackend(object):
             raise Exception("Nothing on Canvas to dump to file")
 
         # TODO: Aashish
-        writePDF(self.renWin)
+        vtkToMatplotlib(self.renWin)
         return
 
         self.hideGUI()
