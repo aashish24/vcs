@@ -57,7 +57,7 @@ def writePDF(renWin):
     fig = plt.figure(1, figsize=(renwinSize[0]/300., renwinSize[1]/300.), dpi=300)
     gs1 = gridspec.GridSpec(1, 1)
     gs1.update(left=vp[0], right=vp[2], bottom=vp[1], top=vp[3])
-    plt.subplot(gs1[0, 0])
+    sp = plt.subplot(gs1[0, 0])
     axes = plt.gca()
     axes.get_xaxis().set_ticks([])
     axes.get_yaxis().set_ticks([])
@@ -133,6 +133,8 @@ def writePDF(renWin):
                         tri[i, 2] = idlist.GetId(2)
 
                     for i in xrange(0, nlines):
+                        mat = prop.GetUserTransform()
+
                         cell = lines.GetNextCell(idlist)
                         alineA = [0, 0]
                         alineB = [0, 0]
@@ -149,8 +151,26 @@ def writePDF(renWin):
                         newPointB[1] = pointB[1]
                         newPointB[2] = pointB[2]
 
-                        aline.append([newPointA[0], newPointA[1]])
-                        aline.append([newPointB[0], newPointB[1]])
+
+                        vtkA = mat.TransformPoint(newPointA[0], newPointA[1], newPointA[2])
+                        vtkB = mat.TransformPoint(newPointB[0], newPointB[1], newPointB[2])
+
+                        # print 'newPointA ', newPointA
+                        ren.SetWorldPoint(vtkA[0], vtkA[1], vtkA[2], 1.0)
+                        ren.WorldToDisplay()
+                        dpA = ren.GetDisplayPoint()
+                        # print 'dpA ', dpA
+                        mplA = axes.transData.inverted().transform((dpA[0], dpA[1]))
+                        # print 'mplA ', mplA
+
+                        ren.SetWorldPoint(vtkB[0], vtkB[1], vtkB[2], 1.0)
+                        ren.WorldToDisplay()
+                        dpB = ren.GetDisplayPoint()
+                        mplB = axes.transData.inverted().transform((dpB[0], dpB[1]))
+                        # print 'mplB ', mplB
+
+                        aline.append([mplA[0] * 0.88, mplA[1] * 0.88])
+                        aline.append([mplB[0] * 0.88, mplB[1] * 0.88])
                         lin.append(aline)
 
                     for i in xrange(npts):
@@ -165,8 +185,6 @@ def writePDF(renWin):
 
                         ux = zeros(nvls)
                         uy = zeros(nvls)
-
-                        print vels.GetNumberOfTuples()
 
                         for i in xrange(0, nvls):
                             U = vels.GetTuple(i)
@@ -200,9 +218,10 @@ def writePDF(renWin):
         ren = renderers.GetNextItem()
 
     if len(lin) > 0:
+        # print lin
         lc = LineCollection(lin, linestyles='solid', colors='black')
         lc.set_linewidth(0.1)
-        axes.add_collection(lc)
+        sp.add_collection(lc)
     plt.show()
     return
 
