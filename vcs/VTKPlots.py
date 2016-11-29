@@ -45,22 +45,32 @@ def writePDF(renWin):
         print 'nothing to write'
         return
 
-    ren = renderers.GetNextItem()
+    # ren = renderers.GetNextItem()
     vp = ren.GetViewport()
 
     # Initialize mpl plot
     renwinSize = renWin.GetSize()
     aspect = renwinSize[0]/float(renwinSize[1])
     print ren.GetViewport()
+
     h = math.ceil(renwinSize[1]/300.)
     w = math.ceil(aspect * h)
+
+
     fig = plt.figure(1, figsize=(renwinSize[0]/300., renwinSize[1]/300.), dpi=300)
+    fig.set_facecolor('white')
+
     gs1 = gridspec.GridSpec(1, 1)
     gs1.update(left=vp[0], right=vp[2], bottom=vp[1], top=vp[3])
+
     sp = plt.subplot(gs1[0, 0])
+
     axes = plt.gca()
     axes.get_xaxis().set_ticks([])
     axes.get_yaxis().set_ticks([])
+    # axes.set_xlim([-180, 175])
+    # axes.set_ylim([-90, 90])
+
     index = 0
     lin = []
     xx = []
@@ -169,8 +179,15 @@ def writePDF(renWin):
                         mplB = axes.transData.inverted().transform((dpB[0], dpB[1]))
                         # print 'mplB ', mplB
 
-                        aline.append([mplA[0] * 0.88, mplA[1] * 0.88])
-                        aline.append([mplB[0] * 0.88, mplB[1] * 0.88])
+                        # aline.append([mplA[0] * 0.88, mplA[1] * 0.88])
+                        # aline.append([mplB[0] * 0.88, mplB[1] * 0.88])
+
+                        aline.append([mplA[0], mplA[1]])
+                        aline.append([mplB[0], mplB[1]])
+
+                        # plt.subplot(111)
+                        # axes.plot([mplA[0], mplB[0]], [mplA[1], mplB[1]], clip_on=False)
+
                         lin.append(aline)
 
                     for i in xrange(npts):
@@ -192,8 +209,9 @@ def writePDF(renWin):
                         #     # print ux[i]
 
                         if triangles is not None:
+                            # plt.subplot(gs1[0, 0])
                             cmap = vtklutTomplColor(prop.GetMapper().GetLookupTable())
-                            a = plt.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+                            a = axes.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
                 index += 1
 
             elif prop.GetClassName() == 'vtkTextActor':
@@ -221,7 +239,11 @@ def writePDF(renWin):
         # print lin
         lc = LineCollection(lin, linestyles='solid', colors='black')
         lc.set_linewidth(0.1)
-        sp.add_collection(lc)
+        lc.set_clip_on(False)
+        axes.add_collection(lc)
+
+    # plt.xlim((-200, 200))
+    # plt.ylim((-100, 100))
     plt.show()
     return
 
