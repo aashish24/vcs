@@ -25,22 +25,22 @@ def noclip(ax):
      for a in artists:
          a.set_clip_on(False)
 
-def vtkToMatplotlibColor(vtklut):
+def vtkToMatplotlibColor(vtklut, scalars):
     from matplotlib.colors import LinearSegmentedColormap
 
-
-    # vtkcolors = vtklut.GetTable()
     colors = []
-    # print 'SetNumberOfTableValues ', vtklut.GetNumberOfTableValues()
-    noOfColors = vtklut.GetNumberOfTableValues()
-
-    for i in range(0, noOfColors):
-        tupl = vtklut.GetTableValue(i)
-        colors.append(tupl)
-    cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
-    if noOfColors == 4:
-        print colors
-
+    if (scalars.GetNumberOfComponents() == 4):
+        noOfColors = scalars.GetNumberOfTuples()
+        for i in range(0, noOfColors):
+            tupl = scalars.GetTuple(i)
+            colors.append([tupl[0]/255.0, tupl[1]/255.0, tupl[2]/255.0, tupl[3]/255.0])
+        cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
+    else:
+        noOfColors = vtklut.GetNumberOfTableValues()
+        for i in range(0, noOfColors):
+            tupl = vtklut.GetTableValue(i)
+            colors.append(tupl)
+        cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
     return cmap
 
 def vtkToMatplotlib(renWin):
@@ -63,7 +63,6 @@ def vtkToMatplotlib(renWin):
         vp = ren.GetViewport()
 
         if tightvp is None:
-            print ren
             tightvp = [0, 0, 0, 0]
             tightvp[0] = vp[0]
             tightvp[1] = vp[1]
@@ -245,30 +244,33 @@ def vtkToMatplotlib(renWin):
 
                     if (data.GetPointData().GetNumberOfArrays() >= 1):
                         vels = data.GetPointData().GetScalars()
+                        noOfComponents = vels.GetNumberOfComponents()
                         nvls = vels.GetNumberOfTuples()
+                        ux = zeros(nvls)
+                        uy = zeros(nvls)
 
                         if len(tri) != 0:
-                            ux = zeros(nvls)
-                            uy = zeros(nvls)
-
-                            for i in xrange(0, nvls):
-                                U = vels.GetTuple(i)
-                                ux[i] = U[0]
+                            if noOfComponents == 4:
+                                for i in xrange(0, nvls):
+                                    ux[i] = i
+                            else:
+                                for i in xrange(0, nvls):
+                                    U = vels.GetTuple(i)
+                                    ux[i] = U[0]
                             #     # print ux[i]
 
                             if triangles is not None:
-                                cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable())
+                                cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable(), vels)
                                 a = axes.tricontourf(x, y, tri, ux, cmap=cmap, antialiased=True)
 
                                 for collection in a.collections:
                                     collection.set_clip_on(False)
-                    # elif triangles is not None:
-                    #     print prop
-                    #     writer = vtk.vtkXMLPolyDataWriter()
-                    #     filename = "foo" + str(index) + ".vtp"
-                    #     writer.SetFileName(filename)
-                    #     writer.SetInputData(data)
-                    #     writer.Write()
+                    elif triangles is not None:
+                        writer = vtk.vtkXMLPolyDataWriter()
+                        filename = "foo" + str(index) + ".vtp"
+                        writer.SetFileName(filename)
+                        writer.SetInputData(data)
+                        writer.Write()
 
                 index += 1
 
