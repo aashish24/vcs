@@ -121,13 +121,10 @@ def vtkToMatplotlib(renWin):
         prop = props.GetNextProp()
 
         while prop is not None:
-            print prop.GetClassName()
-
+            # print prop.GetClassName()
             if prop.GetClassName() == 'vtkOpenGLActor':
                 mapper = prop.GetMapper()
-
-                print mapper.GetClassName()
-
+                # print mapper.GetClassName()
                 if mapper.GetClassName() == 'vtkPainterPolyDataMapper':
                     mapper.Update()
                     data = mapper.GetInput()
@@ -1635,7 +1632,7 @@ class VTKVCSBackend(object):
             Renderer = self.createRenderer()
             self.renWin.AddRenderer(Renderer)
             Renderer.SetViewport(vp[0], vp[2], vp[1], vp[3])
-            print 'vp ', vp
+            # print 'vp ', vp
 
             if Yrg[0] > Yrg[1]:
                 # Yrg=[Yrg[1],Yrg[0]]
