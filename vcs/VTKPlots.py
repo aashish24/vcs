@@ -273,19 +273,22 @@ def vtkToMatplotlib(renWin):
             elif prop.GetClassName() == 'vtkTextActor':
                 text = prop.GetInput()
                 coord = prop.GetActualPositionCoordinate()
-                prop = prop.GetScaledTextProperty()
-                viewport = ren.GetViewport()
+                textprop = prop.GetScaledTextProperty()
                 textPos2 = coord.GetComputedDoubleViewportValue(ren)
-                viewportPixels = [int(viewport[0] * renwinSize[0]),
-                                  int(viewport[1] * renwinSize[1]),
-                                  int(viewport[2] * renwinSize[0]),
-                                  int(viewport[3] * renwinSize[1])]
-                viewportSpread = [viewportPixels[2] - viewportPixels[0],
-                                  viewportPixels[3] - viewportPixels[1]]
-                textPos = [0, 0]
-                textPos[0] = (textPos2[0] / float(viewportSpread[0]))
-                textPos[1] = (textPos2[1] / float(viewportSpread[1]))
-                fig.text(textPos[0], textPos[1], text, size=4)
+                mplPos = axes.transData.inverted().transform(
+                    (textPos2[0], textPos2[1]))
+                x = mplPos[0]
+                y = mplPos[1]
+
+                ha = 'center'
+                if textprop.GetJustification() == 0:
+                    ha = 'left'
+                elif textprop.GetJustification() == 2:
+                    ha = 'right'
+
+                axes.text(x, y, text, fontsize=textprop.GetFontSize() * 0.2,
+                            ha=ha, va='center',
+                            rotation=textprop.GetOrientation())
 
 
             prop = props.GetNextProp()
