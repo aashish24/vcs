@@ -28,17 +28,19 @@ def noclip(ax):
 def vtkToMatplotlibColor(vtklut):
     from matplotlib.colors import LinearSegmentedColormap
 
-    vtklut.ForceBuild()
-    vtkcolors = vtklut.GetTable()
+
+    # vtkcolors = vtklut.GetTable()
     colors = []
-    print 'SetNumberOfTableValues ', vtklut.GetNumberOfTableValues()
+    # print 'SetNumberOfTableValues ', vtklut.GetNumberOfTableValues()
     noOfColors = vtklut.GetNumberOfTableValues()
 
     for i in range(0, noOfColors):
         tupl = vtklut.GetTableValue(i)
-        # print tupl
         colors.append(tupl)
     cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=noOfColors)
+    if noOfColors == 4:
+        print colors
+
     return cmap
 
 def vtkToMatplotlib(renWin):
@@ -256,7 +258,7 @@ def vtkToMatplotlib(renWin):
 
                             if triangles is not None:
                                 cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable())
-                                a = axes.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+                                a = axes.tricontourf(x, y, tri, ux, cmap=cmap, antialiased=True)
 
                                 for collection in a.collections:
                                     collection.set_clip_on(False)
