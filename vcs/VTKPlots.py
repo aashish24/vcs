@@ -13,6 +13,18 @@ import inspect
 import VTKAnimate
 import vcsvtk
 
+def noclip(ax):
+     "Turn off all clipping in axes ax; call immediately before drawing"
+     ax.set_clip_on(False)
+     artists = []
+     artists.extend(ax.collections)
+     artists.extend(ax.patches)
+     artists.extend(ax.lines)
+     artists.extend(ax.texts)
+     artists.extend(ax.artists)
+     for a in artists:
+         a.set_clip_on(False)
+
 def vtkToMatplotlibColor(vtklut):
     from matplotlib.colors import LinearSegmentedColormap
 
@@ -86,10 +98,13 @@ def vtkToMatplotlib(renWin):
     gs1 = gridspec.GridSpec(1, 1)
     gs1.update(left=tightvp[0], right=tightvp[2], bottom=tightvp[1], top=tightvp[3])
     sp = plt.subplot(gs1[0, 0])
-
+    sp.set_clip_on(False)
     axes = plt.gca()
+    axes.set_clip_on(False)
     axes.get_xaxis().set_ticks([])
     axes.get_yaxis().set_ticks([])
+    axes.set_xlim([-180, 175])
+    axes.set_ylim([-90, 90])
 
     index = 0
     lin = []
@@ -130,8 +145,8 @@ def vtkToMatplotlib(renWin):
                     filter = vtk.vtkTriangleFilter()
                     filter.SetInputData(data)
                     filter.Update()
-
                     data = filter.GetOutput()
+
                     triangles = data.GetPolys()
                     points = data.GetPoints()
                     lines = data.GetLines()
@@ -212,26 +227,47 @@ def vtkToMatplotlib(renWin):
 
                     for i in xrange(npts):
                         pt = points.GetPoint(i)
-                        x[i] = pt[0]
-                        y[i] = pt[1]
-                        z[i] = pt[2]
+                        mat = prop.GetUserTransform()
+                        vtkA = mat.TransformPoint(pt[0], pt[1], pt[2])
 
-                    if (data.GetPointData().GetNumberOfArrays() >= 2):
-                        vels = data.GetPointData().GetArray(2)
+                        # print 'newPointA ', newPointA
+                        ren.SetWorldPoint(vtkA[0], vtkA[1], vtkA[2], 1.0)
+                        ren.WorldToDisplay()
+                        dpA = ren.GetDisplayPoint()
+
+                        mplA = axes.transData.inverted().transform((dpA[0], dpA[1]))
+
+                        x[i] = mplA[0]
+                        y[i] = mplA[1]
+                        z[i] = 0.0
+
+                    if (data.GetPointData().GetNumberOfArrays() >= 1):
+                        vels = data.GetPointData().GetScalars()
                         nvls = vels.GetNumberOfTuples()
 
-                        ux = zeros(nvls)
-                        uy = zeros(nvls)
+                        if len(tri) != 0:
+                            ux = zeros(nvls)
+                            uy = zeros(nvls)
 
-                        for i in xrange(0, nvls):
-                            U = vels.GetTuple(i)
-                            ux[i] = U[0]
-                        #     # print ux[i]
+                            for i in xrange(0, nvls):
+                                U = vels.GetTuple(i)
+                                ux[i] = U[0]
+                            #     # print ux[i]
 
-                        if triangles is not None:
-                            # plt.subplot(gs1[0, 0])
-                            cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable())
-                            a = axes.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+                            if triangles is not None:
+                                cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable())
+                                a = axes.tricontourf(x, y, tri, ux, 4, cmap=cmap, antialiased=True)
+
+                                for collection in a.collections:
+                                    collection.set_clip_on(False)
+                    # elif triangles is not None:
+                    #     print prop
+                    #     writer = vtk.vtkXMLPolyDataWriter()
+                    #     filename = "foo" + str(index) + ".vtp"
+                    #     writer.SetFileName(filename)
+                    #     writer.SetInputData(data)
+                    #     writer.Write()
+
                 index += 1
 
             elif prop.GetClassName() == 'vtkTextActor':
@@ -1566,9 +1602,6 @@ class VTKVCSBackend(object):
 
     def fitToViewport(self, Actor, vp, wc=None, geoBounds=None, geo=None, priority=None,
                       create_renderer=False):
-
-        print 'wc ', wc
-
         # Data range in World Coordinates
         if priority == 0:
             return (None, 1, 1)
