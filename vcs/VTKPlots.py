@@ -13,8 +13,9 @@ import inspect
 import VTKAnimate
 import vcsvtk
 
+# Not used currently
 def noclip(ax):
-     "Turn off all clipping in axes ax; call immediately before drawing"
+     '''Turn off all clipping in axes ax; call immediately before drawing'''
      ax.set_clip_on(False)
      artists = []
      artists.extend(ax.collections)
@@ -25,7 +26,26 @@ def noclip(ax):
      for a in artists:
          a.set_clip_on(False)
 
+def vtkToMatplotlibText(axes, ren, prop):
+    text = prop.GetInput()
+    coord = prop.GetActualPositionCoordinate()
+    textprop = prop.GetScaledTextProperty()
+    textPos2 = coord.GetComputedDoubleViewportValue(ren)
+    mplPos = axes.transData.inverted().transform(
+                (textPos2[0], textPos2[1]))
+    x = mplPos[0]
+    y = mplPos[1]
+    ha = 'center'
+    if textprop.GetJustification() == 0:
+        ha = 'left'
+    elif textprop.GetJustification() == 2:
+        ha = 'right'
+    axes.text(x, y, text, fontsize=textprop.GetFontSize() * 0.2,
+                ha=ha, va='center',
+                rotation=textprop.GetOrientation())
+
 def vtkToMatplotlibColor(vtklut, scalars):
+    '''Generate Matplotlib colormap using information from VTK'''
     from matplotlib.colors import LinearSegmentedColormap
 
     colors = []
@@ -44,13 +64,11 @@ def vtkToMatplotlibColor(vtklut, scalars):
     return cmap
 
 def vtkToMatplotlib(renWin):
-    import vtk
     import math
     from numpy import zeros
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
     from matplotlib.collections import LineCollection
-
 
     # Compute minimum viewport coordinates
     #-------------------------------------
@@ -108,7 +126,7 @@ def vtkToMatplotlib(renWin):
     axes.set_ylim([-90, 90])
 
     index = 0
-    lin = []
+    mplline = []
     xx = []
     yy = []
     maxX = None
@@ -179,65 +197,39 @@ def vtkToMatplotlib(renWin):
                         mat = prop.GetUserTransform()
 
                         cell = lines.GetNextCell(idlist)
-                        alineA = [0, 0]
-                        alineB = [0, 0]
-                        newPointA = [0, 0, 0, 1]
-                        newPointB = [0, 0, 0, 1]
                         aline = []
-                        pointA = points.GetPoint(idlist.GetId(0))
-                        pointB = points.GetPoint(idlist.GetId(1))
+                        point1 = points.GetPoint(idlist.GetId(0))
+                        point2 = points.GetPoint(idlist.GetId(1))
 
-                        newPointA[0] = pointA[0]
-                        newPointA[1] = pointA[1]
-                        newPointA[2] = pointA[2]
-                        newPointB[0] = pointB[0]
-                        newPointB[1] = pointB[1]
-                        newPointB[2] = pointB[2]
+                        transpt1 = mat.TransformPoint(point1[0], point1[1], point1[2])
+                        transpt2 = mat.TransformPoint(point2[0], point2[1], point2[2])
 
-
-                        vtkA = mat.TransformPoint(newPointA[0], newPointA[1], newPointA[2])
-                        vtkB = mat.TransformPoint(newPointB[0], newPointB[1], newPointB[2])
-
-                        # print 'newPointA ', newPointA
-                        ren.SetWorldPoint(vtkA[0], vtkA[1], vtkA[2], 1.0)
+                        ren.SetWorldPoint(transpt1[0], transpt1[1], transpt1[2], 1.0)
                         ren.WorldToDisplay()
-                        dpA = ren.GetDisplayPoint()
-                        # print 'dpA ', dpA
-                        mplA = axes.transData.inverted().transform((dpA[0], dpA[1]))
-                        # print 'mplA ', mplA
+                        dppt = ren.GetDisplayPoint()
+                        mplpt1 = axes.transData.inverted().transform((dppt[0], dppt[1]))
 
-                        ren.SetWorldPoint(vtkB[0], vtkB[1], vtkB[2], 1.0)
+                        ren.SetWorldPoint(transpt2[0], transpt2[1], transpt2[2], 1.0)
                         ren.WorldToDisplay()
                         dpB = ren.GetDisplayPoint()
-                        mplB = axes.transData.inverted().transform((dpB[0], dpB[1]))
-                        # print 'mplB ', mplB
-
-                        # aline.append([mplA[0] * 0.88, mplA[1] * 0.88])
-                        # aline.append([mplB[0] * 0.88, mplB[1] * 0.88])
-
-                        aline.append([mplA[0], mplA[1]])
-                        aline.append([mplB[0], mplB[1]])
-
-                        # plt.subplot(111)
-                        # axes.plot([mplA[0], mplB[0]], [mplA[1], mplB[1]], clip_on=False)
-
-                        lin.append(aline)
+                        mplpt2 = axes.transData.inverted().transform((dpB[0], dpB[1]))
+                        aline.append([mplpt1[0], mplpt1[1]])
+                        aline.append([mplpt2[0], mplpt2[1]])
+                        mplline.append(aline)
 
                     for i in xrange(npts):
                         pt = points.GetPoint(i)
                         mat = prop.GetUserTransform()
-                        vtkA = mat.TransformPoint(pt[0], pt[1], pt[2])
+                        transpt = mat.TransformPoint(pt[0], pt[1], pt[2])
 
-                        # print 'newPointA ', newPointA
-                        ren.SetWorldPoint(vtkA[0], vtkA[1], vtkA[2], 1.0)
+                        ren.SetWorldPoint(transpt[0], transpt[1], transpt[2], 1.0)
                         ren.WorldToDisplay()
-                        dpA = ren.GetDisplayPoint()
+                        dispt = ren.GetDisplayPoint()
 
-                        mplA = axes.transData.inverted().transform((dpA[0], dpA[1]))
+                        mplpt = axes.transData.inverted().transform((dispt[0], dispt[1]))
 
-                        x[i] = mplA[0]
-                        y[i] = mplA[1]
-                        z[i] = 0.0
+                        x[i] = mplpt[0]
+                        y[i] = mplpt[1]
 
                     if (data.GetPointData().GetNumberOfArrays() >= 1):
                         vels = data.GetPointData().GetScalars()
@@ -245,59 +237,46 @@ def vtkToMatplotlib(renWin):
                         nvls = vels.GetNumberOfTuples()
                         ux = zeros(nvls)
                         uy = zeros(nvls)
+                        disableCliping = False
 
                         if len(tri) != 0:
                             if noOfComponents == 4:
                                 for i in xrange(0, nvls):
                                     ux[i] = i
+                                disableCliping = True
                             else:
                                 for i in xrange(0, nvls):
                                     U = vels.GetTuple(i)
                                     ux[i] = U[0]
-                            #     # print ux[i]
 
                             if triangles is not None:
                                 cmap = vtkToMatplotlibColor(prop.GetMapper().GetLookupTable(), vels)
                                 a = axes.tricontourf(x, y, tri, ux, cmap=cmap, antialiased=True)
 
-                                for collection in a.collections:
-                                    collection.set_clip_on(False)
-                    elif triangles is not None:
-                        writer = vtk.vtkXMLPolyDataWriter()
-                        filename = "foo" + str(index) + ".vtp"
-                        writer.SetFileName(filename)
-                        writer.SetInputData(data)
-                        writer.Write()
+                                if disableCliping:
+                                    for collection in a.collections:
+                                        collection.set_clip_on(False)
+
+                    # Debug helper
+                    # elif triangles is not None:
+                    #     writer = vtk.vtkXMLPolyDataWriter()
+                    #     filename = "foo" + str(index) + ".vtp"
+                    #     writer.SetFileName(filename)
+                    #     writer.SetInputData(data)
+                    #     writer.Write()
 
                 index += 1
 
             elif prop.GetClassName() == 'vtkTextActor':
-                text = prop.GetInput()
-                coord = prop.GetActualPositionCoordinate()
-                textprop = prop.GetScaledTextProperty()
-                textPos2 = coord.GetComputedDoubleViewportValue(ren)
-                mplPos = axes.transData.inverted().transform(
-                    (textPos2[0], textPos2[1]))
-                x = mplPos[0]
-                y = mplPos[1]
-
-                ha = 'center'
-                if textprop.GetJustification() == 0:
-                    ha = 'left'
-                elif textprop.GetJustification() == 2:
-                    ha = 'right'
-
-                axes.text(x, y, text, fontsize=textprop.GetFontSize() * 0.2,
-                            ha=ha, va='center',
-                            rotation=textprop.GetOrientation())
+                vtkToMatplotlibText(axes, ren, prop)
 
 
             prop = props.GetNextProp()
         ren = renderers.GetNextItem()
 
-    if len(lin) > 0:
-        # print lin
-        lc = LineCollection(lin, linestyles='solid', colors='black')
+    if len(mplline) > 0:
+        # print mplline
+        lc = LineCollection(mplline, linestyles='solid', colors='black')
         lc.set_linewidth(0.1)
         lc.set_clip_on(False)
         axes.add_collection(lc)
